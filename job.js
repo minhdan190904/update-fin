@@ -7,11 +7,18 @@ const axios = require('axios');
 
 const TELEGRAM_BOT_TOKEN = '8598152179:AAFfj1LlKSZ1TKdO3FAnbjAKNic3iHXK4Qc';
 const TELEGRAM_CHAT_ID = '-5198536028';
-const VERSION_FILE = path.join(__dirname, 'version.txt');
-
-// ĐIỀN LINK GOOGLE PLAY HOẶC TRANG WEB CỦA BẠN VÀO ĐÂY
-const TARGET_URL = 'https://play.google.com/store/apps/details?id=com.b3fin.finphoto&hl=en';
-const APP_ID = 'com.b3fin.finphoto';
+const APPS = [
+    {
+        id: 'com.b3fin.finphoto',
+        url: 'https://play.google.com/store/apps/details?id=com.b3fin.finphoto&hl=en',
+        versionFile: path.join(__dirname, 'version_com.b3fin.finphoto.txt')
+    },
+    {
+        id: 'photo3b.aitrending.editor',
+        url: 'https://play.google.com/store/apps/details?id=photo3b.aitrending.editor&hl=vi',
+        versionFile: path.join(__dirname, 'version_photo3b.aitrending.editor.txt')
+    }
+];
 
 function isVersionGreaterOrEqual(current, target) {
     if (!target || target.trim() === '') return true;
@@ -40,62 +47,61 @@ async function sendTelegramMessage(message) {
     }
 }
 
-async function fetchVersionFromWebsite() {
+async function fetchVersionFromWebsite(appId) {
     try {
-        const appInfo = await gplay.app({ appId: APP_ID });
+        const appInfo = await gplay.app({ appId: appId });
         return appInfo.version;
     } catch (error) {
-        console.error("Lỗi khi lấy thông tin Google Play:", error.message);
+        console.error(`Lỗi khi lấy thông tin Google Play cho ${appId}:`, error.message);
         return null;
     }
 }
 
 async function checkVersion() {
-    console.log("Đang kiểm tra phiên bản mới...");
-    try {
-        if (!fs.existsSync(VERSION_FILE)) {
-            fs.writeFileSync(VERSION_FILE, '1.0.0', 'utf8');
-        }
-        const currentVersion = fs.readFileSync(VERSION_FILE, 'utf8').trim();
-        
-        // Bỏ qua nếu chưa cài đặt TARGET_URL
-        if (TARGET_URL.includes('YOUR_PACKAGE_ID')) {
-            console.log("Vui lòng cập nhật TARGET_URL trong file job.js");
-            return;
-        }
-
-        const newVersion = await fetchVersionFromWebsite();
-        
-        if (newVersion) {
-            console.log(`Phiên bản hiện tại: ${currentVersion} | Phiên bản trên web: ${newVersion}`);
-            
-            // Nếu current không >= new (nghĩa là new > current)
-            if (!isVersionGreaterOrEqual(currentVersion, newVersion)) {
-                const message = `🚀 <b>Đã có phiên bản mới!</b>\n\n📦 Phiên bản cũ: <code>${currentVersion}</code>\n✨ Phiên bản mới: <code>${newVersion}</code>\n\n🔗 Link: ${TARGET_URL}`;
-                await sendTelegramMessage(message);
-                
-                // Lưu lại phiên bản mới
-                fs.writeFileSync(VERSION_FILE, newVersion, 'utf8');
-                console.log(`Đã cập nhật phiên bản thành công: ${newVersion}`);
-            } else {
-                console.log("Không có phiên bản mới.");
+    console.log("Đang kiểm tra phiên bản mới cho các ứng dụng...");
+    for (const app of APPS) {
+        try {
+            if (!fs.existsSync(app.versionFile)) {
+                fs.writeFileSync(app.versionFile, '1.0.0', 'utf8');
             }
-        } else {
-            console.log("Không tìm thấy thông tin phiên bản trên trang web.");
+            const currentVersion = fs.readFileSync(app.versionFile, 'utf8').trim();
+            
+            if (app.url.includes('YOUR_PACKAGE_ID')) {
+                console.log(`Vui lòng cập nhật URL cho ứng dụng ${app.id}`);
+                continue;
+            }
+
+            const newVersion = await fetchVersionFromWebsite(app.id);
+            
+            if (newVersion) {
+                console.log(`[${app.id}] Phiên bản hiện tại: ${currentVersion} | Phiên bản trên web: ${newVersion}`);
+                
+                if (!isVersionGreaterOrEqual(currentVersion, newVersion)) {
+                    const message = `🚀 <b>Đã có phiên bản mới cho ứng dụng!</b>\n\n📦 Ứng dụng: <code>${app.id}</code>\n📦 Phiên bản cũ: <code>${currentVersion}</code>\n✨ Phiên bản mới: <code>${newVersion}</code>\n\n🔗 Link: ${app.url}`;
+                    await sendTelegramMessage(message);
+                    
+                    fs.writeFileSync(app.versionFile, newVersion, 'utf8');
+                    console.log(`Đã cập nhật phiên bản thành công cho ${app.id}: ${newVersion}`);
+                } else {
+                    console.log(`[${app.id}] Không có phiên bản mới.`);
+                }
+            } else {
+                console.log(`[${app.id}] Không tìm thấy thông tin phiên bản trên trang web.`);
+            }
+        } catch (error) {
+            console.error(`Lỗi trong quá trình checkVersion cho ${app.id}:`, error.message);
         }
-    } catch (error) {
-        console.error("Lỗi trong quá trình checkVersion:", error.message);
     }
 }
 
 function startJob() {
-    console.log("Bắt đầu chạy Cron Job kiểm tra phiên bản (mỗi 30 phút).");
+    console.log("Bắt đầu chạy Cron Job kiểm tra phiên bản (mỗi 5 phút).");
     
     // Chạy kiểm tra ngay lần đầu tiên khi khởi động
     checkVersion();
     
-    // Đặt lịch chạy mỗi 30 phút
-    cron.schedule('*/30 * * * *', () => {
+    // Đặt lịch chạy mỗi 5 phút
+    cron.schedule('*/5 * * * *', () => {
         checkVersion();
     });
 }
