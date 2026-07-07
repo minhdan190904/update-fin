@@ -33,17 +33,29 @@ function isVersionGreaterOrEqual(current, target) {
     return true;
 }
 
-async function sendTelegramMessage(message) {
+async function sendTelegramMessage(message, retries = 3) {
     const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
-    try {
-        await axios.post(url, {
-            chat_id: TELEGRAM_CHAT_ID,
-            text: message,
-            parse_mode: 'HTML'
-        });
-        console.log("Đã gửi tin nhắn Telegram thành công!");
-    } catch (error) {
-        console.error("Lỗi khi gửi tin nhắn Telegram:", error.message);
+    for (let i = 0; i < retries; i++) {
+        try {
+            await axios.post(url, {
+                chat_id: TELEGRAM_CHAT_ID,
+                text: message,
+                parse_mode: 'HTML'
+            });
+            console.log("Đã gửi tin nhắn Telegram thành công!");
+            return;
+        } catch (error) {
+            console.error(`Lỗi khi gửi tin nhắn Telegram (lần ${i + 1}/${retries}):`, error.message);
+            if (error.response) {
+                console.error("Chi tiết lỗi Telegram:", JSON.stringify(error.response.data, null, 2));
+            }
+            if (i === retries - 1) {
+                console.error("Đã thử gửi 3 lần nhưng vẫn thất bại, bỏ qua.");
+            } else {
+                // Đợi 2 giây trước khi thử lại
+                await new Promise(resolve => setTimeout(resolve, 2000));
+            }
+        }
     }
 }
 
